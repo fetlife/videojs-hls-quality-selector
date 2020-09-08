@@ -132,10 +132,10 @@ class HlsQualitySelectorPlugin {
         return -1;
       }
       if (current.item.value < next.item.value) {
-        return -1;
+        return this.config.invertQualityOrder ? 1 : -1;
       }
       if (current.item.value > next.item.value) {
-        return 1;
+        return this.config.invertQualityOrder ? -1 : 1;
       }
       return 0;
     });
