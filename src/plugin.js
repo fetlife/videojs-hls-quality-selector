@@ -34,8 +34,12 @@ class HlsQualitySelectorPlugin {
     }
   }
 
-  labelQualityLevel(height, width) {
+  labelQualityLevel(width, height) {
     return height + 'p';
+  }
+
+  isQualityHd(width, height) {
+    return height >= 720;
   }
 
   /**
@@ -112,16 +116,25 @@ class HlsQualitySelectorPlugin {
     const qualityList = player.qualityLevels();
     const levels = qualityList.levels_ || [];
     const levelItems = [];
+
     const labelQualityLevel = this.config.labelQualityLevel || this.labelQualityLevel;
+    const isQualityHd = this.config.isQualityHd || this.isQualityHd;
 
     for (let i = 0; i < levels.length; ++i) {
       if (!levelItems.filter(_existingItem => {
         return _existingItem.item && _existingItem.item.value === levels[i].height;
       }).length) {
+        const width = levels[i].width;
+        const height = levels[i].height;
+
         const levelItem = this.getQualityMenuItem.call(this, {
-          label: labelQualityLevel(levels[i].height, levels[i].width),
+          label: labelQualityLevel(width, height),
           value: levels[i].height
         });
+
+        if (this.config.hdIconClass && isQualityHd(width, height)) {
+          levelItem.addClass(this.config.hdIconClass);
+        }
 
         levelItems.push(levelItem);
       }
