@@ -34,6 +34,10 @@ class HlsQualitySelectorPlugin {
     }
   }
 
+  labelQualityLevel(height, width) {
+    return height + 'p';
+  }
+
   /**
    * Returns HLS Plugin
    *
@@ -108,13 +112,14 @@ class HlsQualitySelectorPlugin {
     const qualityList = player.qualityLevels();
     const levels = qualityList.levels_ || [];
     const levelItems = [];
+    const labelQualityLevel = this.config.labelQualityLevel || this.labelQualityLevel;
 
     for (let i = 0; i < levels.length; ++i) {
       if (!levelItems.filter(_existingItem => {
         return _existingItem.item && _existingItem.item.value === levels[i].height;
       }).length) {
         const levelItem = this.getQualityMenuItem.call(this, {
-          label: levels[i].height + 'p',
+          label: labelQualityLevel(levels[i].height, levels[i].width),
           value: levels[i].height
         });
 

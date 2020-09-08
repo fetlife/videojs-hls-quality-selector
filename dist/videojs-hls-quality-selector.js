@@ -370,6 +370,10 @@ var HlsQualitySelectorPlugin = function () {
     }
   }
 
+  HlsQualitySelectorPlugin.prototype.labelQualityLevel = function labelQualityLevel(height, width) {
+    return height + 'p';
+  };
+
   /**
    * Returns HLS Plugin
    *
@@ -452,13 +456,14 @@ var HlsQualitySelectorPlugin = function () {
     var qualityList = player.qualityLevels();
     var levels = qualityList.levels_ || [];
     var levelItems = [];
+    var labelQualityLevel = this.config.labelQualityLevel || this.labelQualityLevel;
 
     var _loop = function _loop(i) {
       if (!levelItems.filter(function (_existingItem) {
         return _existingItem.item && _existingItem.item.value === levels[i].height;
       }).length) {
         var levelItem = _this.getQualityMenuItem.call(_this, {
-          label: levels[i].height + 'p',
+          label: labelQualityLevel(levels[i].height, levels[i].width),
           value: levels[i].height
         });
 
