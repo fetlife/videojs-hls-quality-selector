@@ -317,8 +317,8 @@ var ConcreteMenuItem = function (_VideoJsMenuItemClass) {
     }
 
     // Set this menu item to selected, and set quality.
-    this.plugin.setQuality(this.item.value);
     this.selected(true);
+    this.plugin.setQuality(this.item.value);
   };
 
   return ConcreteMenuItem;
@@ -348,6 +348,8 @@ var HlsQualitySelectorPlugin = function () {
 
     this.player = player;
     this.config = options;
+    this.labelQualityLevel = this.config.labelQualityLevel || this.defaultLabelQualityLevel;
+    this.isQualityHd = this.config.isQualityHd || this.defaultIsQualityHd;
 
     // If there is quality levels plugin and the HLS tech exists
     // then continue.
@@ -358,11 +360,11 @@ var HlsQualitySelectorPlugin = function () {
     }
   }
 
-  HlsQualitySelectorPlugin.prototype.labelQualityLevel = function labelQualityLevel(width, height) {
+  HlsQualitySelectorPlugin.prototype.defaultLabelQualityLevel = function defaultLabelQualityLevel(width, height) {
     return height + 'p';
   };
 
-  HlsQualitySelectorPlugin.prototype.isQualityHd = function isQualityHd(width, height) {
+  HlsQualitySelectorPlugin.prototype.defaultIsQualityHd = function defaultIsQualityHd(width, height) {
     return height >= 720;
   };
 
@@ -452,9 +454,6 @@ var HlsQualitySelectorPlugin = function () {
     var levels = qualityList.levels_ || [];
     var levelItems = [];
 
-    var labelQualityLevel = this.config.labelQualityLevel || this.labelQualityLevel;
-    var isQualityHd = this.config.isQualityHd || this.isQualityHd;
-
     var _loop = function _loop(i) {
       if (!levelItems.filter(function (_existingItem) {
         return _existingItem.item && _existingItem.item.value === levels[i].height;
@@ -463,11 +462,11 @@ var HlsQualitySelectorPlugin = function () {
         var height = levels[i].height;
 
         var levelItem = _this.getQualityMenuItem.call(_this, {
-          label: labelQualityLevel(width, height),
+          label: _this.labelQualityLevel(width, height),
           value: levels[i].height
         });
 
-        if (_this.config.hdIconClass && isQualityHd(width, height)) {
+        if (_this.config.hdIconClass && _this.isQualityHd(width, height)) {
           levelItem.addClass(_this.config.hdIconClass);
         }
 
@@ -492,11 +491,13 @@ var HlsQualitySelectorPlugin = function () {
       return 0;
     });
 
-    levelItems.push(this.getQualityMenuItem.call(this, {
-      label: player.localize('Auto'),
+    this._autoMenuItem = this.getQualityMenuItem.call(this, {
+      label: 'testt',
       value: 'auto',
       selected: true
-    }));
+    });
+    this.updateAutoLabel();
+    levelItems.push(this._autoMenuItem);
 
     if (this._qualityButton) {
       this._qualityButton.createItems = function () {
@@ -506,20 +507,42 @@ var HlsQualitySelectorPlugin = function () {
     }
   };
 
-  HlsQualitySelectorPlugin.prototype.onChangeQualityLevel = function onChangeQualityLevel() {
+  HlsQualitySelectorPlugin.prototype.updateAutoLabel = function updateAutoLabel() {
+    if (!this._autoMenuItem) {
+      return;
+    }
+
+    var qualityLevels = this.player.qualityLevels();
+    var selectedLevel = qualityLevels[qualityLevels.selectedIndex];
+    var autoLabel = this.player.localize('Auto');
+
+    if (selectedLevel && this._autoMenuItem.isSelected_) {
+      var qualityLabel = this.labelQualityLevel(selectedLevel.width, selectedLevel.height);
+
+      this._autoMenuItem.el().innerText = autoLabel + ' (' + qualityLabel + ')';
+    } else {
+      this._autoMenuItem.el().innerText = autoLabel;
+    }
+  };
+
+  HlsQualitySelectorPlugin.prototype.updateQualityButtonHdIcon = function updateQualityButtonHdIcon() {
     if (!this.config.hdIconClass) {
       return;
     }
 
-    var isQualityHd = this.config.isQualityHd || this.isQualityHd;
     var qualityLevels = this.player.qualityLevels();
     var selectedLevel = qualityLevels[qualityLevels.selectedIndex];
 
-    if (isQualityHd(selectedLevel.width, selectedLevel.height)) {
+    if (this.isQualityHd(selectedLevel.width, selectedLevel.height)) {
       this._qualityButton.addClass(this.config.hdIconClass);
     } else {
       this._qualityButton.removeClass(this.config.hdIconClass);
     }
+  };
+
+  HlsQualitySelectorPlugin.prototype.onChangeQualityLevel = function onChangeQualityLevel() {
+    this.updateQualityButtonHdIcon();
+    this.updateAutoLabel();
   };
 
   /**
@@ -541,6 +564,7 @@ var HlsQualitySelectorPlugin = function () {
 
       quality.enabled = quality.height === height || height === 'auto';
     }
+    this.updateAutoLabel();
     this._qualityButton.unpressButton();
   };
 

@@ -24,6 +24,8 @@ class HlsQualitySelectorPlugin {
   constructor(player, options) {
     this.player = player;
     this.config = options;
+    this.labelQualityLevel = this.config.labelQualityLevel || this.defaultLabelQualityLevel;
+    this.isQualityHd = this.config.isQualityHd || this.defaultIsQualityHd;
 
     // If there is quality levels plugin and the HLS tech exists
     // then continue.
@@ -34,11 +36,11 @@ class HlsQualitySelectorPlugin {
     }
   }
 
-  labelQualityLevel(width, height) {
+  defaultLabelQualityLevel(width, height) {
     return height + 'p';
   }
 
-  isQualityHd(width, height) {
+  defaultIsQualityHd(width, height) {
     return height >= 720;
   }
 
@@ -120,9 +122,6 @@ class HlsQualitySelectorPlugin {
     const levels = qualityList.levels_ || [];
     const levelItems = [];
 
-    const labelQualityLevel = this.config.labelQualityLevel || this.labelQualityLevel;
-    const isQualityHd = this.config.isQualityHd || this.isQualityHd;
-
     for (let i = 0; i < levels.length; ++i) {
       if (!levelItems.filter(_existingItem => {
         return _existingItem.item && _existingItem.item.value === levels[i].height;
@@ -131,11 +130,11 @@ class HlsQualitySelectorPlugin {
         const height = levels[i].height;
 
         const levelItem = this.getQualityMenuItem.call(this, {
-          label: labelQualityLevel(width, height),
+          label: this.labelQualityLevel(width, height),
           value: levels[i].height
         });
 
-        if (this.config.hdIconClass && isQualityHd(width, height)) {
+        if (this.config.hdIconClass && this.isQualityHd(width, height)) {
           levelItem.addClass(this.config.hdIconClass);
         }
 
@@ -156,11 +155,13 @@ class HlsQualitySelectorPlugin {
       return 0;
     });
 
-    levelItems.push(this.getQualityMenuItem.call(this, {
-      label: player.localize('Auto'),
+    this._autoMenuItem = this.getQualityMenuItem.call(this, {
+      label: 'testt',
       value: 'auto',
       selected: true
-    }));
+    });
+    this.updateAutoLabel();
+    levelItems.push(this._autoMenuItem);
 
     if (this._qualityButton) {
       this._qualityButton.createItems = function() {
@@ -171,20 +172,42 @@ class HlsQualitySelectorPlugin {
 
   }
 
-  onChangeQualityLevel() {
+  updateAutoLabel() {
+    if (!this._autoMenuItem) {
+      return;
+    }
+
+    const qualityLevels = this.player.qualityLevels();
+    const selectedLevel = qualityLevels[qualityLevels.selectedIndex];
+    const autoLabel = this.player.localize('Auto');
+
+    if (selectedLevel && this._autoMenuItem.isSelected_) {
+      const qualityLabel = this.labelQualityLevel(selectedLevel.width, selectedLevel.height);
+
+      this._autoMenuItem.el().innerText = `${autoLabel} (${qualityLabel})`;
+    } else {
+      this._autoMenuItem.el().innerText = autoLabel;
+    }
+  }
+
+  updateQualityButtonHdIcon() {
     if (!this.config.hdIconClass) {
       return;
     }
 
-    const isQualityHd = this.config.isQualityHd || this.isQualityHd;
     const qualityLevels = this.player.qualityLevels();
     const selectedLevel = qualityLevels[qualityLevels.selectedIndex];
 
-    if (isQualityHd(selectedLevel.width, selectedLevel.height)) {
+    if (this.isQualityHd(selectedLevel.width, selectedLevel.height)) {
       this._qualityButton.addClass(this.config.hdIconClass);
     } else {
       this._qualityButton.removeClass(this.config.hdIconClass);
     }
+  }
+
+  onChangeQualityLevel() {
+    this.updateQualityButtonHdIcon();
+    this.updateAutoLabel();
   }
 
   /**
@@ -204,6 +227,7 @@ class HlsQualitySelectorPlugin {
 
       quality.enabled = (quality.height === height || height === 'auto');
     }
+    this.updateAutoLabel();
     this._qualityButton.unpressButton();
   }
 
