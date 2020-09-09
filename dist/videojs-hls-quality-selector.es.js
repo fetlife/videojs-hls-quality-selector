@@ -383,7 +383,10 @@ var HlsQualitySelectorPlugin = function () {
 
 
   HlsQualitySelectorPlugin.prototype.bindPlayerEvents = function bindPlayerEvents() {
-    this.player.qualityLevels().on('addqualitylevel', this.onAddQualityLevel.bind(this));
+    var qualityLevels = this.player.qualityLevels();
+
+    qualityLevels.on('addqualitylevel', this.onAddQualityLevel.bind(this));
+    qualityLevels.on('change', this.onChangeQualityLevel.bind(this));
   };
 
   /**
@@ -500,6 +503,22 @@ var HlsQualitySelectorPlugin = function () {
         return levelItems;
       };
       this._qualityButton.update();
+    }
+  };
+
+  HlsQualitySelectorPlugin.prototype.onChangeQualityLevel = function onChangeQualityLevel() {
+    if (!this.config.hdIconClass) {
+      return;
+    }
+
+    var isQualityHd = this.config.isQualityHd || this.isQualityHd;
+    var qualityLevels = this.player.qualityLevels();
+    var selectedLevel = qualityLevels[qualityLevels.selectedIndex];
+
+    if (isQualityHd(selectedLevel.width, selectedLevel.height)) {
+      this._qualityButton.addClass(this.config.hdIconClass);
+    } else {
+      this._qualityButton.removeClass(this.config.hdIconClass);
     }
   };
 

@@ -55,7 +55,10 @@ class HlsQualitySelectorPlugin {
    * Binds listener for quality level changes.
    */
   bindPlayerEvents() {
-    this.player.qualityLevels().on('addqualitylevel', this.onAddQualityLevel.bind(this));
+    const qualityLevels = this.player.qualityLevels();
+
+    qualityLevels.on('addqualitylevel', this.onAddQualityLevel.bind(this));
+    qualityLevels.on('change', this.onChangeQualityLevel.bind(this));
   }
 
   /**
@@ -166,6 +169,22 @@ class HlsQualitySelectorPlugin {
       this._qualityButton.update();
     }
 
+  }
+
+  onChangeQualityLevel() {
+    if (!this.config.hdIconClass) {
+      return;
+    }
+
+    const isQualityHd = this.config.isQualityHd || this.isQualityHd;
+    const qualityLevels = this.player.qualityLevels();
+    const selectedLevel = qualityLevels[qualityLevels.selectedIndex];
+
+    if (isQualityHd(selectedLevel.width, selectedLevel.height)) {
+      this._qualityButton.addClass(this.config.hdIconClass);
+    } else {
+      this._qualityButton.removeClass(this.config.hdIconClass);
+    }
   }
 
   /**
