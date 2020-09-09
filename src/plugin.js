@@ -32,6 +32,7 @@ class HlsQualitySelectorPlugin {
     if (this.player.qualityLevels && this.getHls()) {
       // Create the quality button.
       this.createQualityButton();
+      this.updateQualityLevels();
       this.bindPlayerEvents();
     }
   }
@@ -116,7 +117,10 @@ class HlsQualitySelectorPlugin {
    * Executed when a quality level is added from HLS playlist.
    */
   onAddQualityLevel() {
+    this.updateQualityLevels();
+  }
 
+  updateQualityLevels() {
     const player = this.player;
     const qualityList = player.qualityLevels();
     const levels = qualityList.levels_ || [];

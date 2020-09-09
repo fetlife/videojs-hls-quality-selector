@@ -368,6 +368,7 @@ var HlsQualitySelectorPlugin = function () {
     if (this.player.qualityLevels && this.getHls()) {
       // Create the quality button.
       this.createQualityButton();
+      this.updateQualityLevels();
       this.bindPlayerEvents();
     }
   }
@@ -459,6 +460,10 @@ var HlsQualitySelectorPlugin = function () {
 
 
   HlsQualitySelectorPlugin.prototype.onAddQualityLevel = function onAddQualityLevel() {
+    this.updateQualityLevels();
+  };
+
+  HlsQualitySelectorPlugin.prototype.updateQualityLevels = function updateQualityLevels() {
     var _this = this;
 
     var player = this.player;
