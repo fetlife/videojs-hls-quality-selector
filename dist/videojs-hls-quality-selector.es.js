@@ -400,13 +400,15 @@ var HlsQualitySelectorPlugin = function () {
   HlsQualitySelectorPlugin.prototype.createQualityButton = function createQualityButton() {
 
     var player = this.player;
+    var buttonClass = 'vjs-quality-selector';
+    var button = new ConcreteButton(player);
 
-    this._qualityButton = new ConcreteButton(player);
+    this._qualityButton = button;
 
     var placementIndex = player.controlBar.children().length - 2;
     var concreteButtonInstance = player.controlBar.addChild(this._qualityButton, { componentClass: 'qualitySelector' }, this.config.placementIndex || placementIndex);
 
-    concreteButtonInstance.addClass('vjs-quality-selector');
+    concreteButtonInstance.addClass(buttonClass);
     if (!this.config.displayCurrentQuality) {
       var icon = ' ' + (this.config.vjsIconClass || 'vjs-icon-hd');
 
@@ -415,6 +417,16 @@ var HlsQualitySelectorPlugin = function () {
       this.setButtonInnerText('auto');
     }
     concreteButtonInstance.removeClass('vjs-hidden');
+
+    document.addEventListener('click', function (event) {
+      // If user clicks inside the element, do nothing
+      if (event.target.closest('.' + buttonClass)) {
+        return;
+      }
+
+      // If user clicks outside the element, hide it!
+      button.unpressButton();
+    });
   };
 
   /**

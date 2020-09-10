@@ -70,15 +70,17 @@ class HlsQualitySelectorPlugin {
   createQualityButton() {
 
     const player = this.player;
+    const buttonClass = 'vjs-quality-selector';
+    const button = new ConcreteButton(player);
 
-    this._qualityButton = new ConcreteButton(player);
+    this._qualityButton = button;
 
     const placementIndex = player.controlBar.children().length - 2;
     const concreteButtonInstance = player.controlBar.addChild(this._qualityButton,
       {componentClass: 'qualitySelector'},
       this.config.placementIndex || placementIndex);
 
-    concreteButtonInstance.addClass('vjs-quality-selector');
+    concreteButtonInstance.addClass(buttonClass);
     if (!this.config.displayCurrentQuality) {
       const icon = ` ${this.config.vjsIconClass || 'vjs-icon-hd'}`;
 
@@ -89,6 +91,15 @@ class HlsQualitySelectorPlugin {
     }
     concreteButtonInstance.removeClass('vjs-hidden');
 
+    document.addEventListener('click', function(event) {
+      // If user clicks inside the element, do nothing
+      if (event.target.closest(`.${buttonClass}`)) {
+        return;
+      }
+
+      // If user clicks outside the element, hide it!
+      button.unpressButton();
+    });
   }
 
   /**
