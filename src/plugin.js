@@ -34,6 +34,7 @@ class HlsQualitySelectorPlugin {
       this.createQualityButton();
       this.updateQualityLevels();
       this.bindPlayerEvents();
+      this.updateUi();
     }
   }
 
@@ -61,7 +62,17 @@ class HlsQualitySelectorPlugin {
     const qualityLevels = this.player.qualityLevels();
 
     qualityLevels.on('addqualitylevel', this.onAddQualityLevel.bind(this));
-    qualityLevels.on('change', this.onChangeQualityLevel.bind(this));
+
+    // taken from https://github.com/videojs/http-streaming#segment-metadata.
+    // We cannot use this.player.qualityLevels() here because the selected
+    // quality index there is the one that the ABR algorithm chose to
+    // "eventually" switch to after all the already-downloaded segments are played,
+    // rather than the "current" quality that we need to display here
+    const segmentMetadataTrack = this.getSegmentMetadataTrack();
+
+    if (segmentMetadataTrack) {
+      segmentMetadataTrack.on('cuechange', this.onCueChange.bind(this));
+    }
   }
 
   /**
@@ -171,7 +182,7 @@ class HlsQualitySelectorPlugin {
     });
 
     this._autoMenuItem = this.getQualityMenuItem.call(this, {
-      label: 'testt',
+      label: '',
       value: 'auto',
       selected: true
     });
@@ -187,17 +198,46 @@ class HlsQualitySelectorPlugin {
 
   }
 
+  getSegmentMetadataTrack() {
+    const tracks = this.player.textTracks();
+
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i].label === 'segment-metadata') {
+        return tracks[i];
+      }
+    }
+    return null;
+  }
+
+  getCurrentResolution() {
+    const segmentMetadataTrack = this.getSegmentMetadataTrack();
+
+    if (!segmentMetadataTrack) {
+      return null;
+    }
+
+    const activeCue = segmentMetadataTrack.activeCues[0];
+
+    if (!activeCue) {
+      return null;
+    }
+
+    return activeCue.value.resolution;
+  }
+
   updateAutoLabel() {
-    if (!this._autoMenuItem) {
+    const currentResolution = this.getCurrentResolution();
+
+    // if current resolution is unavailable (e.g. segment got unloaded
+    // at the end of the video), make no changes
+    if (!this._autoMenuItem || !currentResolution) {
       return;
     }
 
-    const qualityLevels = this.player.qualityLevels();
-    const selectedLevel = qualityLevels[qualityLevels.selectedIndex];
     const autoLabel = this.player.localize('Auto');
 
-    if (selectedLevel && this._autoMenuItem.isSelected_) {
-      const qualityLabel = this.labelQualityLevel(selectedLevel.width, selectedLevel.height);
+    if (this._autoMenuItem.isSelected_) {
+      const qualityLabel = this.labelQualityLevel(currentResolution.width, currentResolution.height);
 
       this._autoMenuItem.el().innerText = `${autoLabel} (${qualityLabel})`;
     } else {
@@ -205,24 +245,37 @@ class HlsQualitySelectorPlugin {
     }
   }
 
+  showQualityButtonHdIcon() {
+    this._qualityButton.addClass(this.config.hdIconClass);
+  }
+
+  hideQualityButtonHdIcon() {
+    this._qualityButton.removeClass(this.config.hdIconClass);
+  }
+
   updateQualityButtonHdIcon() {
-    if (!this.config.hdIconClass) {
+    const currentResolution = this.getCurrentResolution();
+
+    // if current resolution is unavailable (e.g. segment got unloaded
+    // at the end of the video), make no changes
+    if (!this.config.hdIconClass || !currentResolution) {
       return;
     }
 
-    const qualityLevels = this.player.qualityLevels();
-    const selectedLevel = qualityLevels[qualityLevels.selectedIndex];
-
-    if (this.isQualityHd(selectedLevel.width, selectedLevel.height)) {
-      this._qualityButton.addClass(this.config.hdIconClass);
+    if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
+      this.showQualityButtonHdIcon();
     } else {
-      this._qualityButton.removeClass(this.config.hdIconClass);
+      this.hideQualityButtonHdIcon();
     }
   }
 
-  onChangeQualityLevel() {
+  updateUi() {
     this.updateQualityButtonHdIcon();
     this.updateAutoLabel();
+  }
+
+  onCueChange() {
+    this.updateUi();
   }
 
   /**
@@ -237,12 +290,32 @@ class HlsQualitySelectorPlugin {
       this.setButtonInnerText(height === 'auto' ? height : `${height}p`);
     }
 
+    let selectedIndex;
+
     for (let i = 0; i < qualityList.length; ++i) {
       const quality = qualityList[i];
 
-      quality.enabled = (quality.height === height || height === 'auto');
+      if (quality.height === height) {
+        quality.enabled = true;
+        selectedIndex = i;
+      } else if (height === 'auto') {
+        // when auto is selected, all qualities are enabled
+        quality.enabled = true;
+      } else {
+        quality.enabled = false;
+      }
     }
-    this.updateAutoLabel();
+
+    if (selectedIndex) {
+      // from https://github.com/videojs/videojs-contrib-quality-levels#triggering-the-change-event
+      qualityList.selectedIndex_ = selectedIndex;
+      qualityList.trigger({ type: 'change', selectedIndex });
+    } else {
+      qualityList.trigger({ type: 'change' });
+    }
+
+    this.updateUi();
+
     this._qualityButton.unpressButton();
   }
 
