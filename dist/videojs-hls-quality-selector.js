@@ -532,7 +532,7 @@ var HlsQualitySelectorPlugin = function () {
     });
 
     this._autoMenuItem = this.getQualityMenuItem.call(this, {
-      label: '',
+      label: 'Auto (test)', // this should get replaced in this.updateAutoLabel() called below
       value: 'auto',
       selected: true
     });
@@ -575,17 +575,14 @@ var HlsQualitySelectorPlugin = function () {
   };
 
   HlsQualitySelectorPlugin.prototype.updateAutoLabel = function updateAutoLabel() {
-    var currentResolution = this.getCurrentResolution();
-
-    // if current resolution is unavailable (e.g. segment got unloaded
-    // at the end of the video), make no changes
-    if (!this._autoMenuItem || !currentResolution) {
+    if (!this._autoMenuItem) {
       return;
     }
 
+    var currentResolution = this.getCurrentResolution();
     var autoLabel = this.player.localize('Auto');
 
-    if (this._autoMenuItem.isSelected_) {
+    if (currentResolution && this._autoMenuItem.isSelected_) {
       var qualityLabel = this.labelQualityLevel(currentResolution.width, currentResolution.height);
 
       this._autoMenuItem.el().innerText = autoLabel + ' (' + qualityLabel + ')';
