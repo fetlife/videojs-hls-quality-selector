@@ -24,14 +24,26 @@ class HlsQualitySelectorPlugin {
   constructor(player, options) {
     this.player = player;
     this.config = options;
+    this.labelQualityLevel = this.config.labelQualityLevel || this.defaultLabelQualityLevel;
+    this.isQualityHd = this.config.isQualityHd || this.defaultIsQualityHd;
 
     // If there is quality levels plugin and the HLS tech exists
     // then continue.
     if (this.player.qualityLevels && this.getHls()) {
       // Create the quality button.
       this.createQualityButton();
+      this.updateQualityLevels();
       this.bindPlayerEvents();
+      this.updateUi();
     }
+  }
+
+  defaultLabelQualityLevel(width, height) {
+    return height + 'p';
+  }
+
+  defaultIsQualityHd(width, height) {
+    return height >= 720;
   }
 
   /**
@@ -47,7 +59,20 @@ class HlsQualitySelectorPlugin {
    * Binds listener for quality level changes.
    */
   bindPlayerEvents() {
-    this.player.qualityLevels().on('addqualitylevel', this.onAddQualityLevel.bind(this));
+    const qualityLevels = this.player.qualityLevels();
+
+    qualityLevels.on('addqualitylevel', this.onAddQualityLevel.bind(this));
+
+    // taken from https://github.com/videojs/http-streaming#segment-metadata.
+    // We cannot use this.player.qualityLevels() here because the selected
+    // quality index there is the one that the ABR algorithm chose to
+    // "eventually" switch to after all the already-downloaded segments are played,
+    // rather than the "current" quality that we need to display here
+    const segmentMetadataTrack = this.getSegmentMetadataTrack();
+
+    if (segmentMetadataTrack) {
+      segmentMetadataTrack.on('cuechange', this.onCueChange.bind(this));
+    }
   }
 
   /**
@@ -56,15 +81,17 @@ class HlsQualitySelectorPlugin {
   createQualityButton() {
 
     const player = this.player;
+    const buttonClass = 'vjs-quality-selector';
+    const button = new ConcreteButton(player);
 
-    this._qualityButton = new ConcreteButton(player);
+    this._qualityButton = button;
 
     const placementIndex = player.controlBar.children().length - 2;
     const concreteButtonInstance = player.controlBar.addChild(this._qualityButton,
       {componentClass: 'qualitySelector'},
       this.config.placementIndex || placementIndex);
 
-    concreteButtonInstance.addClass('vjs-quality-selector');
+    concreteButtonInstance.addClass(buttonClass);
     if (!this.config.displayCurrentQuality) {
       const icon = ` ${this.config.vjsIconClass || 'vjs-icon-hd'}`;
 
@@ -75,6 +102,15 @@ class HlsQualitySelectorPlugin {
     }
     concreteButtonInstance.removeClass('vjs-hidden');
 
+    document.addEventListener('click', function(event) {
+      // If user clicks inside the element, do nothing
+      if (event.target.closest(`.${buttonClass}`)) {
+        return;
+      }
+
+      // If user clicks outside the element, hide it!
+      button.unpressButton();
+    });
   }
 
   /**
@@ -103,7 +139,10 @@ class HlsQualitySelectorPlugin {
    * Executed when a quality level is added from HLS playlist.
    */
   onAddQualityLevel() {
+    this.updateQualityLevels();
+  }
 
+  updateQualityLevels() {
     const player = this.player;
     const qualityList = player.qualityLevels();
     const levels = qualityList.levels_ || [];
@@ -113,10 +152,17 @@ class HlsQualitySelectorPlugin {
       if (!levelItems.filter(_existingItem => {
         return _existingItem.item && _existingItem.item.value === levels[i].height;
       }).length) {
+        const width = levels[i].width;
+        const height = levels[i].height;
+
         const levelItem = this.getQualityMenuItem.call(this, {
-          label: levels[i].height + 'p',
+          label: this.labelQualityLevel(width, height),
           value: levels[i].height
         });
+
+        if (this.config.hdIconClass && this.isQualityHd(width, height)) {
+          levelItem.addClass(this.config.hdIconClass);
+        }
 
         levelItems.push(levelItem);
       }
@@ -127,19 +173,22 @@ class HlsQualitySelectorPlugin {
         return -1;
       }
       if (current.item.value < next.item.value) {
-        return -1;
+        return this.config.invertQualityOrder ? 1 : -1;
       }
       if (current.item.value > next.item.value) {
-        return 1;
+        return this.config.invertQualityOrder ? -1 : 1;
       }
       return 0;
     });
 
-    levelItems.push(this.getQualityMenuItem.call(this, {
-      label: player.localize('Auto'),
+    this._autoMenuItem = this.getQualityMenuItem.call(this, {
+      // the label should get replaced in this.updateAutoLabel() called below
+      label: 'Auto (test)',
       value: 'auto',
       selected: true
-    }));
+    });
+    this.updateAutoLabel();
+    levelItems.push(this._autoMenuItem);
 
     if (this._qualityButton) {
       this._qualityButton.createItems = function() {
@@ -148,6 +197,83 @@ class HlsQualitySelectorPlugin {
       this._qualityButton.update();
     }
 
+  }
+
+  getSegmentMetadataTrack() {
+    const tracks = this.player.textTracks();
+
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i].label === 'segment-metadata') {
+        return tracks[i];
+      }
+    }
+    return null;
+  }
+
+  getCurrentResolution() {
+    const segmentMetadataTrack = this.getSegmentMetadataTrack();
+
+    if (!segmentMetadataTrack) {
+      return null;
+    }
+
+    const activeCue = segmentMetadataTrack.activeCues[0];
+
+    if (!activeCue) {
+      return null;
+    }
+
+    return activeCue.value.resolution;
+  }
+
+  updateAutoLabel() {
+    if (!this._autoMenuItem) {
+      return;
+    }
+
+    const currentResolution = this.getCurrentResolution();
+    const autoLabel = this.player.localize('Auto');
+
+    if (currentResolution && this._autoMenuItem.isSelected_) {
+      const qualityLabel = this.labelQualityLevel(currentResolution.width, currentResolution.height);
+
+      this._autoMenuItem.el().innerText = `${autoLabel} (${qualityLabel})`;
+    } else {
+      this._autoMenuItem.el().innerText = autoLabel;
+    }
+  }
+
+  showQualityButtonHdIcon() {
+    this._qualityButton.addClass(this.config.hdIconClass);
+  }
+
+  hideQualityButtonHdIcon() {
+    this._qualityButton.removeClass(this.config.hdIconClass);
+  }
+
+  updateQualityButtonHdIcon() {
+    const currentResolution = this.getCurrentResolution();
+
+    // if current resolution is unavailable (e.g. segment got unloaded
+    // at the end of the video), make no changes
+    if (!this.config.hdIconClass || !currentResolution) {
+      return;
+    }
+
+    if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
+      this.showQualityButtonHdIcon();
+    } else {
+      this.hideQualityButtonHdIcon();
+    }
+  }
+
+  updateUi() {
+    this.updateQualityButtonHdIcon();
+    this.updateAutoLabel();
+  }
+
+  onCueChange() {
+    this.updateUi();
   }
 
   /**
@@ -162,11 +288,32 @@ class HlsQualitySelectorPlugin {
       this.setButtonInnerText(height === 'auto' ? height : `${height}p`);
     }
 
+    let selectedIndex;
+
     for (let i = 0; i < qualityList.length; ++i) {
       const quality = qualityList[i];
 
-      quality.enabled = (quality.height === height || height === 'auto');
+      if (quality.height === height) {
+        quality.enabled = true;
+        selectedIndex = i;
+      } else if (height === 'auto') {
+        // when auto is selected, all qualities are enabled
+        quality.enabled = true;
+      } else {
+        quality.enabled = false;
+      }
     }
+
+    if (selectedIndex) {
+      // from https://github.com/videojs/videojs-contrib-quality-levels#triggering-the-change-event
+      qualityList.selectedIndex_ = selectedIndex;
+      qualityList.trigger({ type: 'change', selectedIndex });
+    } else {
+      qualityList.trigger({ type: 'change' });
+    }
+
+    this.updateUi();
+
     this._qualityButton.unpressButton();
   }
 
