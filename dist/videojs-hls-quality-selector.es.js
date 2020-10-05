@@ -350,6 +350,7 @@ var HlsQualitySelectorPlugin = function () {
     this.config = options;
     this.labelQualityLevel = this.config.labelQualityLevel || this.defaultLabelQualityLevel;
     this.isQualityHd = this.config.isQualityHd || this.defaultIsQualityHd;
+    this.isQualityFourK = this.config.isQualityFourK || this.defaultIsQualityFourK;
 
     // If there is quality levels plugin and the HLS tech exists
     // then continue.
@@ -368,6 +369,10 @@ var HlsQualitySelectorPlugin = function () {
 
   HlsQualitySelectorPlugin.prototype.defaultIsQualityHd = function defaultIsQualityHd(width, height) {
     return height >= 720;
+  };
+
+  HlsQualitySelectorPlugin.prototype.defaultIsQualityFourK = function defaultIsQualityFourK(width, height) {
+    return height == 2160;
   };
 
   /**
@@ -494,7 +499,9 @@ var HlsQualitySelectorPlugin = function () {
           value: levels[i].height
         });
 
-        if (_this.config.hdIconClass && _this.isQualityHd(width, height)) {
+        if (_this.config.fourKIconClass && _this.isQualityFourK(width, height)) {
+          levelItem.addClass(_this.config.fourKIconClass);
+        } else if (_this.config.hdIconClass && _this.isQualityHd(width, height)) {
           levelItem.addClass(_this.config.hdIconClass);
         }
 
@@ -520,7 +527,8 @@ var HlsQualitySelectorPlugin = function () {
     });
 
     this._autoMenuItem = this.getQualityMenuItem.call(this, {
-      label: 'Auto (test)', // this should get replaced in this.updateAutoLabel() called below
+      // the label should get replaced in this.updateAutoLabel() called below
+      label: 'Auto (test)',
       value: 'auto',
       selected: true
     });
@@ -579,6 +587,14 @@ var HlsQualitySelectorPlugin = function () {
     }
   };
 
+  HlsQualitySelectorPlugin.prototype.showQualityButtonFourKIcon = function showQualityButtonFourKIcon() {
+    this._qualityButton.addClass(this.config.fourKIconClass);
+  };
+
+  HlsQualitySelectorPlugin.prototype.hideQualityButtonFourKIcon = function hideQualityButtonFourKIcon() {
+    this._qualityButton.removeClass(this.config.fourKIconClass);
+  };
+
   HlsQualitySelectorPlugin.prototype.showQualityButtonHdIcon = function showQualityButtonHdIcon() {
     this._qualityButton.addClass(this.config.hdIconClass);
   };
@@ -587,24 +603,29 @@ var HlsQualitySelectorPlugin = function () {
     this._qualityButton.removeClass(this.config.hdIconClass);
   };
 
-  HlsQualitySelectorPlugin.prototype.updateQualityButtonHdIcon = function updateQualityButtonHdIcon() {
+  HlsQualitySelectorPlugin.prototype.updateQualityButtonIcon = function updateQualityButtonIcon() {
     var currentResolution = this.getCurrentResolution();
 
     // if current resolution is unavailable (e.g. segment got unloaded
     // at the end of the video), make no changes
-    if (!this.config.hdIconClass || !currentResolution) {
+    if (!currentResolution) {
       return;
     }
 
-    if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
+    if (this.isQualityFourK(currentResolution.width, currentResolution.height)) {
+      this.hideQualityButtonHdIcon();
+      this.showQualityButtonFourKIcon();
+    } else if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
       this.showQualityButtonHdIcon();
+      this.hideQualityButtonFourKIcon();
     } else {
       this.hideQualityButtonHdIcon();
+      this.hideQualityButtonFourKIcon();
     }
   };
 
   HlsQualitySelectorPlugin.prototype.updateUi = function updateUi() {
-    this.updateQualityButtonHdIcon();
+    this.updateQualityButtonIcon();
     this.updateAutoLabel();
   };
 

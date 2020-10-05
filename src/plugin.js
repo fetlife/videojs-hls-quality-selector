@@ -26,6 +26,7 @@ class HlsQualitySelectorPlugin {
     this.config = options;
     this.labelQualityLevel = this.config.labelQualityLevel || this.defaultLabelQualityLevel;
     this.isQualityHd = this.config.isQualityHd || this.defaultIsQualityHd;
+    this.isQualityFourK = this.config.isQualityFourK || this.defaultIsQualityFourK;
 
     // If there is quality levels plugin and the HLS tech exists
     // then continue.
@@ -44,6 +45,10 @@ class HlsQualitySelectorPlugin {
 
   defaultIsQualityHd(width, height) {
     return height >= 720;
+  }
+
+  defaultIsQualityFourK(width, height) {
+    return height === 2160;
   }
 
   /**
@@ -160,7 +165,9 @@ class HlsQualitySelectorPlugin {
           value: levels[i].height
         });
 
-        if (this.config.hdIconClass && this.isQualityHd(width, height)) {
+        if (this.config.fourKIconClass && this.isQualityFourK(width, height)) {
+          levelItem.addClass(this.config.fourKIconClass);
+        } else if (this.config.hdIconClass && this.isQualityHd(width, height)) {
           levelItem.addClass(this.config.hdIconClass);
         }
 
@@ -243,6 +250,14 @@ class HlsQualitySelectorPlugin {
     }
   }
 
+  showQualityButtonFourKIcon() {
+    this._qualityButton.addClass(this.config.fourKIconClass);
+  }
+
+  hideQualityButtonFourKIcon() {
+    this._qualityButton.removeClass(this.config.fourKIconClass);
+  }
+
   showQualityButtonHdIcon() {
     this._qualityButton.addClass(this.config.hdIconClass);
   }
@@ -251,24 +266,29 @@ class HlsQualitySelectorPlugin {
     this._qualityButton.removeClass(this.config.hdIconClass);
   }
 
-  updateQualityButtonHdIcon() {
+  updateQualityButtonIcon() {
     const currentResolution = this.getCurrentResolution();
 
     // if current resolution is unavailable (e.g. segment got unloaded
     // at the end of the video), make no changes
-    if (!this.config.hdIconClass || !currentResolution) {
+    if (!currentResolution) {
       return;
     }
 
-    if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
+    if (this.isQualityFourK(currentResolution.width, currentResolution.height)) {
+      this.hideQualityButtonHdIcon();
+      this.showQualityButtonFourKIcon();
+    } else if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
       this.showQualityButtonHdIcon();
+      this.hideQualityButtonFourKIcon();
     } else {
       this.hideQualityButtonHdIcon();
+      this.hideQualityButtonFourKIcon();
     }
   }
 
   updateUi() {
-    this.updateQualityButtonHdIcon();
+    this.updateQualityButtonIcon();
     this.updateAutoLabel();
   }
 
