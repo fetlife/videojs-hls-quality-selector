@@ -26,6 +26,8 @@ class HlsQualitySelectorPlugin {
     this.config = options;
     this.labelQualityLevel = this.config.labelQualityLevel || this.defaultLabelQualityLevel;
     this.isQualityHd = this.config.isQualityHd || this.defaultIsQualityHd;
+    this.isQualityFourK = this.config.isQualityFourK || this.defaultIsQualityFourK;
+    this.isQualityEnabled = this.config.isQualityEnabled || this.defaultIsQualityEnabled;
 
     // If there is quality levels plugin and the HLS tech exists
     // then continue.
@@ -44,6 +46,14 @@ class HlsQualitySelectorPlugin {
 
   defaultIsQualityHd(width, height) {
     return height >= 720;
+  }
+
+  defaultIsQualityFourK(width, height) {
+    return height === 2160;
+  }
+
+  defaultIsQualityEnabled(width, height) {
+    return true;
   }
 
   /**
@@ -138,8 +148,17 @@ class HlsQualitySelectorPlugin {
   /**
    * Executed when a quality level is added from HLS playlist.
    */
-  onAddQualityLevel() {
+  onAddQualityLevel(event) {
+    const qualityLevel = event.qualityLevel;
+
+    qualityLevel.enabled = this.isQualityEnabled(qualityLevel.width, qualityLevel.height);
     this.updateQualityLevels();
+  }
+
+  levelExists(levelItems, newLevel) {
+    return levelItems.filter(_existingItem => {
+      return _existingItem.item && _existingItem.item.value === newLevel.height;
+    }).length;
   }
 
   updateQualityLevels() {
@@ -149,18 +168,19 @@ class HlsQualitySelectorPlugin {
     const levelItems = [];
 
     for (let i = 0; i < levels.length; ++i) {
-      if (!levelItems.filter(_existingItem => {
-        return _existingItem.item && _existingItem.item.value === levels[i].height;
-      }).length) {
-        const width = levels[i].width;
-        const height = levels[i].height;
+      const width = levels[i].width;
+      const height = levels[i].height;
+
+      if (this.isQualityEnabled(width, height) && !this.levelExists(levelItems, levels[i])) {
 
         const levelItem = this.getQualityMenuItem.call(this, {
           label: this.labelQualityLevel(width, height),
           value: levels[i].height
         });
 
-        if (this.config.hdIconClass && this.isQualityHd(width, height)) {
+        if (this.config.fourKIconClass && this.isQualityFourK(width, height)) {
+          levelItem.addClass(this.config.fourKIconClass);
+        } else if (this.config.hdIconClass && this.isQualityHd(width, height)) {
           levelItem.addClass(this.config.hdIconClass);
         }
 
@@ -196,7 +216,6 @@ class HlsQualitySelectorPlugin {
       };
       this._qualityButton.update();
     }
-
   }
 
   getSegmentMetadataTrack() {
@@ -243,6 +262,14 @@ class HlsQualitySelectorPlugin {
     }
   }
 
+  showQualityButtonFourKIcon() {
+    this._qualityButton.addClass(this.config.fourKIconClass);
+  }
+
+  hideQualityButtonFourKIcon() {
+    this._qualityButton.removeClass(this.config.fourKIconClass);
+  }
+
   showQualityButtonHdIcon() {
     this._qualityButton.addClass(this.config.hdIconClass);
   }
@@ -251,24 +278,29 @@ class HlsQualitySelectorPlugin {
     this._qualityButton.removeClass(this.config.hdIconClass);
   }
 
-  updateQualityButtonHdIcon() {
+  updateQualityButtonIcon() {
     const currentResolution = this.getCurrentResolution();
 
     // if current resolution is unavailable (e.g. segment got unloaded
     // at the end of the video), make no changes
-    if (!this.config.hdIconClass || !currentResolution) {
+    if (!currentResolution) {
       return;
     }
 
-    if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
+    if (this.isQualityFourK(currentResolution.width, currentResolution.height)) {
+      this.hideQualityButtonHdIcon();
+      this.showQualityButtonFourKIcon();
+    } else if (this.isQualityHd(currentResolution.width, currentResolution.height)) {
       this.showQualityButtonHdIcon();
+      this.hideQualityButtonFourKIcon();
     } else {
       this.hideQualityButtonHdIcon();
+      this.hideQualityButtonFourKIcon();
     }
   }
 
   updateUi() {
-    this.updateQualityButtonHdIcon();
+    this.updateQualityButtonIcon();
     this.updateAutoLabel();
   }
 
@@ -298,7 +330,7 @@ class HlsQualitySelectorPlugin {
         selectedIndex = i;
       } else if (height === 'auto') {
         // when auto is selected, all qualities are enabled
-        quality.enabled = true;
+        quality.enabled = this.isQualityEnabled(quality.width, quality.height);
       } else {
         quality.enabled = false;
       }
