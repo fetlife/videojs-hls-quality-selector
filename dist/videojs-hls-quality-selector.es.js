@@ -351,6 +351,7 @@ var HlsQualitySelectorPlugin = function () {
     this.labelQualityLevel = this.config.labelQualityLevel || this.defaultLabelQualityLevel;
     this.isQualityHd = this.config.isQualityHd || this.defaultIsQualityHd;
     this.isQualityFourK = this.config.isQualityFourK || this.defaultIsQualityFourK;
+    this.isQualityEnabled = this.config.isQualityEnabled || this.defaultIsQualityEnabled;
 
     // If there is quality levels plugin and the HLS tech exists
     // then continue.
@@ -372,7 +373,11 @@ var HlsQualitySelectorPlugin = function () {
   };
 
   HlsQualitySelectorPlugin.prototype.defaultIsQualityFourK = function defaultIsQualityFourK(width, height) {
-    return height == 2160;
+    return height === 2160;
+  };
+
+  HlsQualitySelectorPlugin.prototype.defaultIsQualityEnabled = function defaultIsQualityEnabled(width, height) {
+    return true;
   };
 
   /**
@@ -475,8 +480,17 @@ var HlsQualitySelectorPlugin = function () {
    */
 
 
-  HlsQualitySelectorPlugin.prototype.onAddQualityLevel = function onAddQualityLevel() {
+  HlsQualitySelectorPlugin.prototype.onAddQualityLevel = function onAddQualityLevel(event) {
+    var qualityLevel = event.qualityLevel;
+
+    qualityLevel.enabled = this.isQualityEnabled(qualityLevel.width, qualityLevel.height);
     this.updateQualityLevels();
+  };
+
+  HlsQualitySelectorPlugin.prototype.levelExists = function levelExists(levelItems, newLevel) {
+    return levelItems.filter(function (_existingItem) {
+      return _existingItem.item && _existingItem.item.value === newLevel.height;
+    }).length;
   };
 
   HlsQualitySelectorPlugin.prototype.updateQualityLevels = function updateQualityLevels() {
@@ -487,30 +501,25 @@ var HlsQualitySelectorPlugin = function () {
     var levels = qualityList.levels_ || [];
     var levelItems = [];
 
-    var _loop = function _loop(i) {
-      if (!levelItems.filter(function (_existingItem) {
-        return _existingItem.item && _existingItem.item.value === levels[i].height;
-      }).length) {
-        var width = levels[i].width;
-        var height = levels[i].height;
+    for (var i = 0; i < levels.length; ++i) {
+      var width = levels[i].width;
+      var height = levels[i].height;
 
-        var levelItem = _this.getQualityMenuItem.call(_this, {
-          label: _this.labelQualityLevel(width, height),
+      if (this.isQualityEnabled(width, height) && !this.levelExists(levelItems, levels[i])) {
+
+        var levelItem = this.getQualityMenuItem.call(this, {
+          label: this.labelQualityLevel(width, height),
           value: levels[i].height
         });
 
-        if (_this.config.fourKIconClass && _this.isQualityFourK(width, height)) {
-          levelItem.addClass(_this.config.fourKIconClass);
-        } else if (_this.config.hdIconClass && _this.isQualityHd(width, height)) {
-          levelItem.addClass(_this.config.hdIconClass);
+        if (this.config.fourKIconClass && this.isQualityFourK(width, height)) {
+          levelItem.addClass(this.config.fourKIconClass);
+        } else if (this.config.hdIconClass && this.isQualityHd(width, height)) {
+          levelItem.addClass(this.config.hdIconClass);
         }
 
         levelItems.push(levelItem);
       }
-    };
-
-    for (var i = 0; i < levels.length; ++i) {
-      _loop(i);
     }
 
     levelItems.sort(function (current, next) {
@@ -657,7 +666,7 @@ var HlsQualitySelectorPlugin = function () {
         selectedIndex = i;
       } else if (height === 'auto') {
         // when auto is selected, all qualities are enabled
-        quality.enabled = true;
+        quality.enabled = this.isQualityEnabled(quality.width, quality.height);
       } else {
         quality.enabled = false;
       }
